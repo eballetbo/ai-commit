@@ -91,8 +91,8 @@ def generate_commit_message(diff, history):
         print(f"Error configuring Gemini AI: {e}")
         sys.exit(1)
 
-    # For this script, we'll use the gemini-1.5-flash model
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # For this script, we'll use the gemini-2.5-flash model
+    model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""
     You are an expert programmer and git user. Your task is to write a clear, concise, and conventional commit message.

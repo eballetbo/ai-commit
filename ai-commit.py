@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-AI-Powered Git Commit Message Generator
+AI-Powered Git Commit Message Generator (git-ai-commit)
+
+Git Custom Command: Install as 'git-ai-commit' in PATH to use as 'git ai-commit'
 
 This script analyzes your staged git changes, learns from your repository's
 commit history, and uses the Gemini AI model to generate a suggested
@@ -16,19 +18,25 @@ commit message.
     to enter it if it's not found in the GOOGLE_API_KEY environment variable.
 
 **How it works:**
-1.  Checks for uncommitted changes.
-2.  Stages all modified and new files (`git add .`).
-3.  Fetches the last 10 commit messages to learn the project's style.
-4.  Gets the `git diff --staged` output, which shows the actual code changes.
-5.  Sends the diff and the commit history examples to the Gemini API.
-6.  Presents the AI-generated commit message for your approval.
-7.  If you approve, it performs the commit.
+1.  Checks for staged changes.
+2.  Fetches the last 10 commit messages to learn the project's style.
+3.  Gets the `git diff --staged` output, which shows the actual code changes.
+4.  Sends the diff and the commit history examples to the Gemini API.
+5.  Presents the AI-generated commit message for your approval.
+6.  If you approve, it performs the commit.
+
+**Installation as a Git Command:**
+  1. chmod +x git-ai-commit
+  2. sudo cp git-ai-commit /usr/local/bin/
+     (or ~/.local/bin if ~/.local/bin is in PATH)
+  3. Then run: git ai-commit
 """
 
 import os
 import subprocess
 import sys
 import getpass
+import argparse
 
 try:
     import google.generativeai as genai
@@ -129,21 +137,42 @@ def generate_commit_message(diff, history):
 
 def main():
     """Main function to run the commit message generator."""
+    parser = argparse.ArgumentParser(
+        description="AI-powered commit message generator for Git",
+        add_help=True
+    )
+    parser.add_argument(
+        "--auto-commit",
+        action="store_true",
+        help="Automatically commit without asking for confirmation"
+    )
+    parser.add_argument(
+        "--no-sign",
+        action="store_true",
+        help="Don't sign the commit (default is to sign with -s)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate message but don't commit"
+    )
+
+    args = parser.parse_args()
+
     print("🚀 Starting AI Commit Assistant...")
 
     if not is_git_repository():
         print("Error: This is not a git repository.")
+        print("Usage: git ai-commit [--auto-commit] [--no-sign] [--dry-run]")
         sys.exit(1)
 
     # 1. Get the staged diff
     print("🔍 Analyzing staged changes...")
     staged_diff = run_command("git diff --staged")
     if not staged_diff:
-        print("⚠️ Changes were detected, but `git diff --staged` is empty.")
-        print("This might happen with file mode changes or other non-content modifications.")
-        print("Please create a commit message manually.")
+        print("⚠️ No staged changes found.")
+        print("Stage your changes first with: git add <files>")
         sys.exit(0)
-
 
     # 2. Get commit history for context
     print("📚 Learning from recent commit history...")
@@ -154,7 +183,6 @@ def main():
         print("Could not retrieve commit history. Assuming this is a new repository.")
         commit_history = "No previous commits found. This is likely the initial commit."
 
-
     # 3. Generate the commit message
     suggested_message = generate_commit_message(staged_diff, commit_history)
 
@@ -164,27 +192,33 @@ def main():
     print(suggested_message)
     print("="*60)
 
-    # 4. Ask for user confirmation
-    try:
-        user_approval = input("\nDo you want to commit with this message? (y/n/e to edit): ").lower()
-    except (EOFError, KeyboardInterrupt):
-        print("\n\nOperation cancelled by user.")
-        sys.exit(1)
+    # 4. Handle auto-commit or user confirmation
+    should_commit = args.auto_commit
 
+    if not args.dry_run and not should_commit:
+        try:
+            user_approval = input("\nDo you want to commit with this message? (y/n/e to edit): ").lower()
+            should_commit = user_approval == 'y'
 
-    if user_approval == 'y':
+            if user_approval == 'e':
+                print("\n📝 Aborting automatic commit.")
+                print("You can now edit the message and commit manually.")
+                print("To commit manually, run: git commit")
+                sys.exit(0)
+        except (EOFError, KeyboardInterrupt):
+            print("\n\nOperation cancelled by user.")
+            sys.exit(1)
+
+    if args.dry_run:
+        print("\n📋 [DRY RUN] Would commit with the above message")
+        sys.exit(0)
+
+    if should_commit:
         print("\n✅ Committing...")
-        run_command(f'git commit -m "{suggested_message}"')
+        sign_flag = "" if args.no_sign else "-s"
+        run_command(f'git commit {sign_flag} -m "{suggested_message}"')
         print("\n🎉 Commit successful!")
         print(run_command("git log -n 1 --pretty=oneline"))
-    elif user_approval == 'e':
-        print("\n📝 Aborting automatic commit.")
-        print("You can now edit the message and commit manually.")
-        # We can leave the staged files and the user can run `git commit`
-        # and they will get their default editor with the message.
-        # For a better experience, we could write the message to a file
-        # and open the editor, but this is simpler.
-        print("\nTo commit manually, run: git commit")
     else:
         print("\n❌ Commit aborted by user.")
         print("Changes are still staged. To unstage, run: `git reset`")

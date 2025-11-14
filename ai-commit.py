@@ -120,7 +120,7 @@ def generate_commit_message(diff, history):
     **Instructions:**
     1. Write a commit message that accurately summarizes the changes.
     2. Follow the conventional commit format if it seems to be used in the history (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
-    3. The first line (subject) should be 100 characters or less.
+    3. Keep each line under 100 characters. This applies to the subject line and all body lines.
     4. After the subject, add a blank line, followed by a more detailed body explaining the 'what' and 'why' of the changes if necessary.
     5. Do not include any introductory text like "Here is the commit message:". Just provide the raw commit message.
     """

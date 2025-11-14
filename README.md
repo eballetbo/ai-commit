@@ -71,6 +71,17 @@ git ai-commit --no-verify --signoff
 
 If you pass a commit-message flag (`-m`, `-F`, `--file`), the tool will respect it and will not overwrite it with the AI suggestion.
 
+## Passing additional context
+
+You can provide additional context to the AI using the `--context` flag. This is useful when you want to help the AI understand the scope of the changes more deeply. For example:
+
+```bash
+git ai-commit --context "fixes the following build error: undefined reference to foo"
+git ai-commit --context "part of ticket PROJ-123"
+```
+
+The context is included in the AI prompt and can help generate a more accurate commit message.
+
 ## Recommended workflow
 
 1. Stage your changes: `git add <files>`

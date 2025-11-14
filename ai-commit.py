@@ -91,8 +91,14 @@ def get_api_key():
     return api_key
 
 
-def generate_commit_message(diff, history):
-    """Generates a commit message using the Gemini AI."""
+def generate_commit_message(diff, history, context=None):
+    """Generates a commit message using the Gemini AI.
+
+    Args:
+        diff: The staged git diff output
+        history: The commit history for style reference
+        context: Optional additional context to include in the prompt
+    """
     print("🤖 Calling the AI to generate a commit message... (this may take a moment)")
 
     api_key = get_api_key()
@@ -104,6 +110,17 @@ def generate_commit_message(diff, history):
 
     # For this script, we'll use the gemini-2.5-flash model
     model = genai.GenerativeModel('gemini-2.5-flash')
+
+    # Build the prompt with optional context
+    context_section = ""
+    if context:
+        context_section = f"""
+    **Additional Context (provided by user):**
+    ---
+    {context}
+    ---
+
+    """
 
     prompt = f"""
     You are an expert programmer and git user. Your task is to write a clear, concise, and conventional commit message.
@@ -119,7 +136,7 @@ def generate_commit_message(diff, history):
     ---
     {diff}
     ---
-
+{context_section}
     **Instructions:**
     1. Write a commit message that accurately summarizes the changes.
     2. Follow the conventional commit format if it seems to be used in the history (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
@@ -175,6 +192,12 @@ def main():
         "--force-analyze",
         action="store_true",
         help="Ignore cache and analyze history before generating the message"
+    )
+    parser.add_argument(
+        "--context",
+        type=str,
+        default=None,
+        help="Additional context to pass to the AI for generating the commit message (e.g., 'fixes the following build error')"
     )
 
     # Parse known args (our flags) and capture all other args to forward
@@ -285,7 +308,7 @@ def main():
                 commit_history = "No previous commits found. This is likely the initial commit."
 
     # 3. Generate the commit message
-    suggested_message = generate_commit_message(staged_diff, commit_history)
+    suggested_message = generate_commit_message(staged_diff, commit_history, context=args.context)
 
     print("\n" + "="*60)
     print("✨ AI-Generated Commit Message Suggestion ✨")

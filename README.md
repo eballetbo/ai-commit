@@ -1,44 +1,87 @@
 # AI-Powered Git Commit Assistant
 
-This project aims to create an AI-powered assistant that helps developers write better Git commit messages.
+Small, local tool that generates commit messages from staged changes using an AI model.
 
-## Features
+## Quick summary
 
-* **Suggests commit messages:** Based on the changes in the staged files, the assistant can suggest relevant and descriptive commit messages.
-* **Improves existing messages:** The assistant can analyze and suggest improvements to manually written commit messages, ensuring clarity and conciseness.
-* **Provides context:** The assistant can provide context about the changes, helping developers understand the impact of their commits.
-* **Integrates with Git:** The assistant can be integrated into the Git workflow, making it easy to use during the commit process.
+- Install the script as a Git custom command and run it as `git ai-commit`.
+- The tool analyzes your staged diff and (optionally) a cached project-style profile to generate a concise commit message.
 
-## Technologies
+## Requirements
 
-* **Python:** The core logic of the assistant is implemented in Python.
-* **Machine Learning:** Machine learning models are used to understand the changes and suggest commit messages.
-* **Natural Language Processing (NLP):** NLP techniques are used to process and generate human-readable text.
+- Python 3
+- `google-generativeai` (install with `pip install -r requirements.txt`)
+- A Gemini API key in `GOOGLE_API_KEY` or enter it when prompted
 
-## Getting Started
+## Install & usage (quick)
 
-To get started with the AI-Powered Git Commit Assistant, follow these steps:
+1. Install dependencies:
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository_url>
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+2. Install as a git command
 
-3. **Configure the assistant:**
-   Follow the instructions in the documentation to configure the assistant for your project.
+```bash
+# make it executable
+chmod +x ai-commit.py
 
-4. **Integrate with Git:**
-   Follow the instructions in the documentation to integrate the assistant into your Git workflow.
+# rename to the git-subcommand form and copy to a bin directory on your PATH
+mv ai-commit.py git-ai-commit
+cp git-ai-commit ~/.local/bin/  # or /usr/local/bin (use sudo if needed)
+
+# OR create a symlink from the repository into ~/.local/bin
+ln -s "$(pwd)/ai-commit.py" ~/.local/bin/git-ai-commit
+```
+
+Notes:
+
+- The file must be named `git-ai-commit` and be executable so Git will expose it as `git ai-commit`.
+- Ensure the target directory (`~/.local/bin` or `/usr/local/bin`) is in your `PATH`.
+
+## Project-style analysis & cache
+
+You can create a small, per-repo style profile to improve prompts and avoid repeated scanning.
+
+```bash
+git ai-commit --analyze            # scans recent commits and writes .git/ai-commit-style.json
+git ai-commit --analyze --history-depth 2000
+```
+
+To force recompute at commit time:
+
+```bash
+git ai-commit --force-analyze
+```
+
+Default cache file: `.git/ai-commit-style.json` (can be overridden with `--cache-file`).
+
+## Editor behavior
+
+- When you choose to edit the AI message (`e` at the prompt), the script opens your configured git editor with the AI message pre-filled using a temporary file (preserves TTY).
+
+## Forwarding git flags
+
+- Any unknown flags passed to `git ai-commit` are forwarded directly to the underlying `git commit` command. For example:
+
+```bash
+git ai-commit --no-verify --signoff
+```
+
+If you pass a commit-message flag (`-m`, `-F`, `--file`), the tool will respect it and will not overwrite it with the AI suggestion.
+
+## Recommended workflow
+
+1. Stage your changes: `git add <files>`
+2. Generate or preview a message: `git ai-commit --dry-run`
+3. Create a style cache once for the repo (optional): `git ai-commit --analyze`
+4. Commit with the AI message and edit if desired: `git ai-commit`
 
 ## Contributing
 
-We welcome contributions to the AI-Powered Git Commit Assistant project. If you have any ideas or suggestions, please open an issue or submit a pull request.
+- PRs and issues welcome.
 
 ## License
 
-This project is licensed under the [License Name] license. See the `LICENSE` file for details.
+- See `LICENSE` in this repository.

@@ -147,23 +147,20 @@ def main():
         help="Automatically commit without asking for confirmation"
     )
     parser.add_argument(
-        "--no-sign",
-        action="store_true",
-        help="Don't sign the commit (default is to sign with -s)"
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Generate message but don't commit"
     )
 
-    args = parser.parse_args()
+    # Parse known args (our flags) and capture all other args to forward
+    # directly to the underlying `git commit` command.
+    args, unknown_args = parser.parse_known_args()
 
     print("🚀 Starting AI Commit Assistant...")
 
     if not is_git_repository():
         print("Error: This is not a git repository.")
-        print("Usage: git ai-commit [--auto-commit] [--no-sign] [--dry-run]")
+        print("Usage: git ai-commit [--auto-commit] [--dry-run]")
         sys.exit(1)
 
     # 1. Get the staged diff
@@ -215,29 +212,62 @@ def main():
 
     if should_commit:
         print("\n✅ Committing...")
-        # Build the git commit command as a list to avoid shell quoting issues.
+        # Forward unknown_args to the underlying git commit command so
+        # callers can use any git commit flags. We still honor our
+        # --no-sign flag (it prevents adding -s by default).
+        commit_args = list(unknown_args)  # copy
+
+        # Build base command
         commit_cmd = ["git", "commit"]
-        if not args.no_sign:
-            commit_cmd.append("-s")
-        # Use -F - to read the commit message from stdin so that
-        # newlines and quotes in the suggested message are preserved
-        # and do not get interpreted by the shell.
-        commit_cmd.extend(["-F", "-"])
+
+        # Detect whether the user already passed a message/file flag
+        def has_message_flag(args_list):
+            for a in args_list:
+                if a == "-m" or a.startswith("-m"):
+                    return True
+                if a == "-F" or a.startswith("-F"):
+                    return True
+                if a == "--message" or a.startswith("--message"):
+                    return True
+                if a == "--file" or a.startswith("--file"):
+                    return True
+            return False
+
         try:
-            proc = subprocess.run(
-                commit_cmd,
-                input=suggested_message,
-                text=True,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+            if has_message_flag(commit_args):
+                # User provided a message or file flag; pass args through as-is.
+                commit_cmd.extend(commit_args)
+                subprocess.run(
+                    commit_cmd,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            else:
+                # No message provided: read message from stdin using -F -
+                commit_cmd.extend(commit_args + ["-F", "-"])
+                subprocess.run(
+                    commit_cmd,
+                    input=suggested_message,
+                    text=True,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
             print("\n🎉 Commit successful!")
             print(run_command("git log -n 1 --pretty=oneline"))
         except subprocess.CalledProcessError as e:
             print("Error executing git commit:")
-            # Prefer showing stderr for debugging
-            print(e.stderr.strip())
+            stderr = e.stderr.strip() if hasattr(e, 'stderr') and e.stderr else ''
+            stdout = e.stdout.strip() if hasattr(e, 'stdout') and e.stdout else ''
+            if stderr:
+                print(stderr)
+            elif stdout:
+                print(stdout)
+            else:
+                print(str(e))
             sys.exit(1)
     else:
         print("\n❌ Commit aborted by user.")

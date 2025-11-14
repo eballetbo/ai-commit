@@ -198,9 +198,42 @@ def main():
             should_commit = user_approval == 'y'
 
             if user_approval == 'e':
-                print("\n📝 Aborting automatic commit.")
-                print("You can now edit the message and commit manually.")
-                print("To commit manually, run: git commit")
+                print("\n📝 Opening editor to modify commit message...")
+                # Write the suggested message to a temporary file and pass that
+                # filename to git via -F <file>. This allows the editor spawned
+                # by git to attach to the real terminal (tty) and avoids piping
+                # stdin which can leave the terminal in an unusable state.
+                import tempfile
+                commit_args = list(unknown_args)  # copy
+                tmp = None
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as tf:
+                        tf.write(suggested_message)
+                        tmp = tf.name
+
+                    commit_cmd = ["git", "commit", "-e", "-F", tmp]
+                    commit_cmd.extend(commit_args)
+
+                    # Run interactively so the editor has a TTY. Do not capture
+                    # stdout/stderr or stdin.
+                    result = subprocess.run(commit_cmd)
+                    if result.returncode == 0:
+                        print("\n🎉 Commit successful!")
+                        print(run_command("git log -n 1 --pretty=oneline"))
+                    else:
+                        print(f"Commit failed with exit code {result.returncode}")
+                        sys.exit(result.returncode)
+                except Exception as e:
+                    print("Error executing git commit:")
+                    print(str(e))
+                    sys.exit(1)
+                finally:
+                    # Clean up temp file if it exists
+                    try:
+                        if tmp and os.path.exists(tmp):
+                            os.unlink(tmp)
+                    except Exception:
+                        pass
                 sys.exit(0)
         except (EOFError, KeyboardInterrupt):
             print("\n\nOperation cancelled by user.")

@@ -215,10 +215,30 @@ def main():
 
     if should_commit:
         print("\n✅ Committing...")
-        sign_flag = "" if args.no_sign else "-s"
-        run_command(f'git commit {sign_flag} -m "{suggested_message}"')
-        print("\n🎉 Commit successful!")
-        print(run_command("git log -n 1 --pretty=oneline"))
+        # Build the git commit command as a list to avoid shell quoting issues.
+        commit_cmd = ["git", "commit"]
+        if not args.no_sign:
+            commit_cmd.append("-s")
+        # Use -F - to read the commit message from stdin so that
+        # newlines and quotes in the suggested message are preserved
+        # and do not get interpreted by the shell.
+        commit_cmd.extend(["-F", "-"])
+        try:
+            proc = subprocess.run(
+                commit_cmd,
+                input=suggested_message,
+                text=True,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            print("\n🎉 Commit successful!")
+            print(run_command("git log -n 1 --pretty=oneline"))
+        except subprocess.CalledProcessError as e:
+            print("Error executing git commit:")
+            # Prefer showing stderr for debugging
+            print(e.stderr.strip())
+            sys.exit(1)
     else:
         print("\n❌ Commit aborted by user.")
         print("Changes are still staged. To unstage, run: `git reset`")

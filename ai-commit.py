@@ -37,6 +37,9 @@ import subprocess
 import sys
 import getpass
 import argparse
+import json
+import datetime
+import re
 
 try:
     import google.generativeai as genai
@@ -151,6 +154,28 @@ def main():
         action="store_true",
         help="Generate message but don't commit"
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Analyze project commit history and write a style cache to .git/ai-commit-style.json"
+    )
+    parser.add_argument(
+        "--history-depth",
+        type=int,
+        default=1000,
+        help="Number of commits to analyze when creating the style cache (default: 1000)"
+    )
+    parser.add_argument(
+        "--cache-file",
+        type=str,
+        default=os.path.join('.git', 'ai-commit-style.json'),
+        help="Path to cache file (default: .git/ai-commit-style.json)"
+    )
+    parser.add_argument(
+        "--force-analyze",
+        action="store_true",
+        help="Ignore cache and analyze history before generating the message"
+    )
 
     # Parse known args (our flags) and capture all other args to forward
     # directly to the underlying `git commit` command.
@@ -163,6 +188,62 @@ def main():
         print("Usage: git ai-commit [--auto-commit] [--dry-run]")
         sys.exit(1)
 
+    # Helper for caching/analyzing project commit history
+    def load_style_cache(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                return json.load(fh)
+        except Exception:
+            return None
+
+    def save_style_cache(path, profile):
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(profile, fh, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"Could not write cache file {path}: {e}")
+            return False
+
+    def analyze_repo(history_depth, cache_file):
+        # Read commit subjects up to history_depth and generate a small profile
+        print(f"🔎 Analyzing last {history_depth} commits to build style profile...")
+        try:
+            raw = run_command(f"git log -n {history_depth} --pretty=format:%s")
+        except SystemExit:
+            raw = ''
+        subjects = [s for s in raw.splitlines() if s.strip()]
+        count = len(subjects)
+
+        # Detect conventional prefixes like 'feat:', 'fix:'
+        prefix_re = re.compile(r'^(?P<prefix>[A-Za-z0-9_-]+):')
+        prefixes = {}
+        for s in subjects:
+            m = prefix_re.match(s)
+            if m:
+                p = m.group('prefix')
+                prefixes[p] = prefixes.get(p, 0) + 1
+
+        sorted_prefixes = sorted(prefixes.items(), key=lambda x: x[1], reverse=True)
+        top_prefixes = [p for p, _ in sorted_prefixes[:10]]
+
+        avg_len = float(sum(len(s) for s in subjects) / count) if count > 0 else 0.0
+
+        profile = {
+            'created_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'commit_count_scanned': count,
+            'history_examples': subjects[:25],
+            'detected_types': prefixes,
+            'top_prefixes': top_prefixes,
+            'avg_subject_len': avg_len,
+        }
+
+        saved = save_style_cache(cache_file, profile)
+        if saved:
+            print(f"✅ Style profile written to {cache_file} ({count} commits scanned)")
+        return profile
+
     # 1. Get the staged diff
     print("🔍 Analyzing staged changes...")
     staged_diff = run_command("git diff --staged")
@@ -171,14 +252,37 @@ def main():
         print("Stage your changes first with: git add <files>")
         sys.exit(0)
 
-    # 2. Get commit history for context
-    print("📚 Learning from recent commit history...")
-    try:
-        commit_history = run_command("git log -n 10 --pretty=format:'%s'")
-    except SystemExit:
-        # This can happen in a new repo with no commits yet
-        print("Could not retrieve commit history. Assuming this is a new repository.")
-        commit_history = "No previous commits found. This is likely the initial commit."
+    # 2. Get commit history for context (use cache if available)
+    print("📚 Preparing commit history context...")
+
+    # If user asked to analyze, do it now and exit
+    if args.analyze:
+        analyze_repo(args.history_depth, args.cache_file)
+        sys.exit(0)
+
+    profile = None
+    if not args.force_analyze:
+        profile = load_style_cache(args.cache_file)
+
+    if profile:
+        examples = profile.get('history_examples', [])
+        detected = profile.get('top_prefixes', [])
+        summary = ''
+        if detected:
+            summary = 'Detected prefixes: ' + ', '.join(detected[:5]) + '\n'
+        commit_history = summary + '\n'.join(examples)
+    else:
+        if args.force_analyze:
+            profile = analyze_repo(args.history_depth, args.cache_file)
+            examples = profile.get('history_examples', [])
+            commit_history = '\n'.join(examples)
+        else:
+            try:
+                commit_history = run_command("git log -n 10 --pretty=format:'%s'")
+            except SystemExit:
+                # This can happen in a new repo with no commits yet
+                print("Could not retrieve commit history. Assuming this is a new repository.")
+                commit_history = "No previous commits found. This is likely the initial commit."
 
     # 3. Generate the commit message
     suggested_message = generate_commit_message(staged_diff, commit_history)

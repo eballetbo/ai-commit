@@ -259,12 +259,22 @@ Notes:
         default=None,
         help="Project commit guidelines (inline text, local file path, or http(s) URL). When provided, guidelines are cached automatically for this repository."
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show progress messages and confirmations (default is quiet mode, which opens the editor directly)"
+    )
 
     # Parse known args (our flags) and capture all other args to forward
     # directly to the underlying `git commit` command.
     args, unknown_args = parser.parse_known_args()
 
-    print("🚀 Starting AI Commit Assistant...")
+    # Helper to conditionally print based on verbose mode
+    def vprint(*args_to_print, **kwargs):
+        if args.verbose:
+            print(*args_to_print, **kwargs)
+
+    vprint("🚀 Starting AI Commit Assistant...")
 
     if not is_git_repository():
         print("Error: This is not a git repository.")
@@ -324,11 +334,11 @@ Notes:
 
         saved = save_style_cache(cache_file, profile)
         if saved:
-            print(f"✅ Style profile written to {cache_file} ({count} commits scanned)")
+            vprint(f"✅ Style profile written to {cache_file} ({count} commits scanned)")
         return profile
 
     # 1. Get the staged diff
-    print("🔍 Analyzing staged changes...")
+    vprint("🔍 Analyzing staged changes...")
     staged_diff = run_command("git diff --staged")
     if not staged_diff:
         print("⚠️ No staged changes found.")
@@ -336,7 +346,7 @@ Notes:
         sys.exit(0)
 
     # 2. Get commit history for context (use cache if available)
-    print("📚 Preparing commit history context...")
+    vprint("📚 Preparing commit history context...")
 
     # If user asked to analyze, do it now and exit
     if args.analyze:
@@ -405,15 +415,16 @@ Notes:
             profile['commit_guidelines'] = guidelines_text
             saved = save_style_cache(args.cache_file, profile)
             if saved:
-                print(f"✅ Guidelines cached into {args.cache_file}")
+                vprint(f"✅ Guidelines cached into {args.cache_file}")
         except Exception:
             # Non-fatal: proceed even if caching fails
-            print("Warning: failed to cache guidelines; continuing without cache update.")
+            vprint("Warning: failed to cache guidelines; continuing without cache update.")
 
     # If no guidelines provided on cmdline, try to load from cache/profile
     if not guidelines_text and profile and isinstance(profile, dict):
         guidelines_text = profile.get('commit_guidelines')
 
+    vprint("🤖 Calling the AI to generate a commit message... (this may take a moment)")
     suggested_message = generate_commit_message(
         staged_diff,
         commit_history,
@@ -421,16 +432,54 @@ Notes:
         guidelines=guidelines_text,
     )
 
-    print("\n" + "="*60)
-    print("✨ AI-Generated Commit Message Suggestion ✨")
-    print("="*60)
-    print(suggested_message)
-    print("="*60)
+    # In verbose mode, show the message and ask for confirmation
+    # In quiet mode, auto-open editor (similar to `git commit` behavior)
+    if args.verbose:
+        print("\n" + "="*60)
+        print("✨ AI-Generated Commit Message Suggestion ✨")
+        print("="*60)
+        print(suggested_message)
+        print("="*60)
 
-    # 4. Handle auto-commit or user confirmation
+    # 4. Handle auto-commit, dry-run, or editor flow
     should_commit = args.auto_commit
 
     if not args.dry_run and not should_commit:
+        # In quiet (non-verbose) mode, auto-open the editor like `git commit` would
+        if not args.verbose:
+            # Auto-open editor with the suggested message (similar to `git commit`)
+            import tempfile
+            commit_args = list(unknown_args)
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as tf:
+                    tf.write(suggested_message)
+                    tmp = tf.name
+
+                commit_cmd = ["git", "commit", "-e", "-F", tmp]
+                commit_cmd.extend(commit_args)
+
+                # Run interactively so the editor has a TTY
+                result = subprocess.run(commit_cmd)
+                if result.returncode == 0:
+                    vprint("\n🎉 Commit successful!")
+                    vprint(run_command("git log -n 1 --pretty=oneline"))
+                else:
+                    print(f"Commit failed with exit code {result.returncode}", file=sys.stderr)
+                    sys.exit(result.returncode)
+            except Exception as e:
+                print("Error executing git commit:", file=sys.stderr)
+                print(str(e), file=sys.stderr)
+                sys.exit(1)
+            finally:
+                try:
+                    if tmp and os.path.exists(tmp):
+                        os.unlink(tmp)
+                except Exception:
+                    pass
+            sys.exit(0)
+
+        # In verbose mode, ask user for confirmation
         try:
             user_approval = input("\nDo you want to commit with this message? (y/n/e to edit): ").lower()
             should_commit = user_approval == 'y'
@@ -478,11 +527,16 @@ Notes:
             sys.exit(1)
 
     if args.dry_run:
-        print("\n📋 [DRY RUN] Would commit with the above message")
+        if args.verbose:
+            print("\n📋 [DRY RUN] Would commit with the above message")
+        else:
+            print("✅ Generated message (dry-run):")
+            print(suggested_message)
         sys.exit(0)
 
     if should_commit:
-        print("\n✅ Committing...")
+        if args.verbose:
+            print("\n✅ Committing...")
         # Forward unknown_args to the underlying git commit command so
         # callers can use any git commit flags. We still honor our
         # --no-sign flag (it prevents adding -s by default).
@@ -528,7 +582,7 @@ Notes:
                 )
 
             print("\n🎉 Commit successful!")
-            print(run_command("git log -n 1 --pretty=oneline"))
+            vprint(run_command("git log -n 1 --pretty=oneline"))
         except subprocess.CalledProcessError as e:
             print("Error executing git commit:")
             stderr = e.stderr.strip() if hasattr(e, 'stderr') and e.stderr else ''
@@ -541,8 +595,9 @@ Notes:
                 print(str(e))
             sys.exit(1)
     else:
-        print("\n❌ Commit aborted by user.")
-        print("Changes are still staged. To unstage, run: `git reset`")
+        if args.verbose:
+            print("\n❌ Commit aborted by user.")
+            print("Changes are still staged. To unstage, run: `git reset`")
 
 
 if __name__ == "__main__":

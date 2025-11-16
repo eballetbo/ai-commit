@@ -59,17 +59,8 @@ Default cache file: `.git/ai-commit-style.json` (can be overridden with `--cache
 
 ## Editor behavior
 
-- When you choose to edit the AI message (`e` at the prompt), the script opens your configured git editor with the AI message pre-filled using a temporary file (preserves TTY).
-
-## Forwarding git flags
-
-- Any unknown flags passed to `git ai-commit` are forwarded directly to the underlying `git commit` command. For example:
-
-```bash
-git ai-commit --no-verify --signoff
-```
-
-If you pass a commit-message flag (`-m`, `-F`, `--file`), the tool will respect it and will not overwrite it with the AI suggestion.
+- By default, the script silently generates the commit message and opens your configured git editor (similar to `git commit`).
+- Use `--verbose` to see progress messages and a confirmation prompt before committing.
 
 ## Passing additional context
 
@@ -110,12 +101,37 @@ git ai-commit --guidelines ./COMMIT_GUIDELINES.md
 git ai-commit --guidelines https://example.com/COMMIT_POLICY.md
 ```
 
+## Verbose and quiet modes
+
+By default, `git ai-commit` runs in **quiet mode**: it silently generates the message and opens your configured git editor (similar to `git commit`). This is the recommended workflow for everyday use.
+
+For a more interactive experience with progress messages and confirmation prompts, use the `--verbose` flag:
+
+```bash
+git ai-commit --verbose
+```
+
+In verbose mode, you'll see:
+- Progress messages as the tool analyzes your changes
+- The AI-generated commit message displayed in full
+- A prompt to confirm before committing, with options to edit (`e`) or abort
+
+## Forwarding git flags
+
+- Any unknown flags passed to `git ai-commit` are forwarded directly to the underlying `git commit` command. For example:
+
+```bash
+git ai-commit --no-verify --signoff
+```
+
+If you pass a commit-message flag (`-m`, `-F`, `--file`), the tool will respect it and will not overwrite it with the AI suggestion.
+
 ## Recommended workflow
 
 1. Stage your changes: `git add <files>`
-2. Generate or preview a message: `git ai-commit --dry-run`
-3. Create a style cache once for the repo (optional): `git ai-commit --analyze`
-4. Commit with the AI message and edit if desired: `git ai-commit`
+2. Use `git ai-commit` for the quiet, editor-based workflow (similar to `git commit`)
+3. Or use `git ai-commit --verbose` for an interactive confirmation flow
+4. Or use `git ai-commit --dry-run` to preview the generated message without committing
 
 ## Contributing
 

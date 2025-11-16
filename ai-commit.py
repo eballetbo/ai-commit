@@ -40,6 +40,8 @@ import argparse
 import json
 import datetime
 import re
+import urllib.request
+from urllib.error import URLError
 
 try:
     import google.generativeai as genai
@@ -91,13 +93,14 @@ def get_api_key():
     return api_key
 
 
-def generate_commit_message(diff, history, context=None):
+def generate_commit_message(diff, history, context=None, guidelines=None):
     """Generates a commit message using the Gemini AI.
 
     Args:
         diff: The staged git diff output
         history: The commit history for style reference
         context: Optional additional context to include in the prompt
+        guidelines: Optional project-specific commit guidelines to follow
     """
     print("🤖 Calling the AI to generate a commit message... (this may take a moment)")
 
@@ -111,13 +114,23 @@ def generate_commit_message(diff, history, context=None):
     # For this script, we'll use the gemini-2.5-flash model
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    # Build the prompt with optional context
+    # Build the prompt with optional context and guidelines
     context_section = ""
     if context:
         context_section = f"""
     **Additional Context (provided by user):**
     ---
     {context}
+    ---
+
+    """
+
+    guidelines_section = ""
+    if guidelines:
+        guidelines_section = f"""
+    **Project Commit Guidelines (to follow):**
+    ---
+    {guidelines}
     ---
 
     """
@@ -136,13 +149,15 @@ def generate_commit_message(diff, history, context=None):
     ---
     {diff}
     ---
+{guidelines_section}
 {context_section}
     **Instructions:**
     1. Write a commit message that accurately summarizes the changes.
     2. Follow the conventional commit format if it seems to be used in the history (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
-    3. Keep each line under 100 characters. This applies to the subject line and all body lines.
-    4. After the subject, add a blank line, followed by a more detailed body explaining the 'what' and 'why' of the changes if necessary.
-    5. Do not include any introductory text like "Here is the commit message:". Just provide the raw commit message.
+    3. When project-specific guidelines are provided, ensure the message follows them closely.
+    4. Keep each line under 100 characters. This applies to the subject line and all body lines.
+    5. After the subject, add a blank line, followed by a more detailed body explaining the 'what' and 'why' of the changes if necessary.
+    6. Do not include any introductory text like "Here is the commit message:". Just provide the raw commit message.
     """
     try:
         response = model.generate_content(prompt)
@@ -198,6 +213,12 @@ def main():
         type=str,
         default=None,
         help="Additional context to pass to the AI for generating the commit message (e.g., 'fixes the following build error')"
+    )
+    parser.add_argument(
+        "--guidelines",
+        type=str,
+        default=None,
+        help="Project commit guidelines (inline text, local file path, or http(s) URL). When provided, guidelines are cached automatically for this repository."
     )
 
     # Parse known args (our flags) and capture all other args to forward
@@ -307,8 +328,59 @@ def main():
                 print("Could not retrieve commit history. Assuming this is a new repository.")
                 commit_history = "No previous commits found. This is likely the initial commit."
 
-    # 3. Generate the commit message
-    suggested_message = generate_commit_message(staged_diff, commit_history, context=args.context)
+    # 3. Prepare guidelines (inline text, local file path, http(s) URL, or cached) and generate the commit message
+    guidelines_text = None
+
+    # If user provided --guidelines, interpret it as either a URL, a file path, or inline text
+    if getattr(args, 'guidelines', None):
+        raw = args.guidelines
+        # Heuristic: treat http(s) URLs as remote resources to fetch
+        if raw.startswith('http://') or raw.startswith('https://'):
+            try:
+                with urllib.request.urlopen(raw, timeout=10) as resp:
+                    b = resp.read()
+                    guidelines_text = b.decode('utf-8', errors='replace')
+            except URLError as e:
+                print(f"Could not download guidelines from {raw}: {e}")
+                sys.exit(1)
+            except Exception as e:
+                print(f"Unexpected error downloading guidelines from {raw}: {e}")
+                sys.exit(1)
+        # If it's a local file path, read it
+        elif os.path.exists(raw):
+            try:
+                with open(raw, 'r', encoding='utf-8') as gf:
+                    guidelines_text = gf.read()
+            except Exception as e:
+                print(f"Could not read guidelines file {raw}: {e}")
+                sys.exit(1)
+        else:
+            # Otherwise treat it as inline guidelines text
+            guidelines_text = raw
+
+        # Cache the provided guidelines into the style cache (overwrite if present)
+        try:
+            if not profile or not isinstance(profile, dict):
+                # if no profile, attempt a light analyze to create a profile
+                profile = analyze_repo(args.history_depth, args.cache_file) if args.history_depth else {}
+            profile['commit_guidelines'] = guidelines_text
+            saved = save_style_cache(args.cache_file, profile)
+            if saved:
+                print(f"✅ Guidelines cached into {args.cache_file}")
+        except Exception:
+            # Non-fatal: proceed even if caching fails
+            print("Warning: failed to cache guidelines; continuing without cache update.")
+
+    # If no guidelines provided on cmdline, try to load from cache/profile
+    if not guidelines_text and profile and isinstance(profile, dict):
+        guidelines_text = profile.get('commit_guidelines')
+
+    suggested_message = generate_commit_message(
+        staged_diff,
+        commit_history,
+        context=args.context,
+        guidelines=guidelines_text,
+    )
 
     print("\n" + "="*60)
     print("✨ AI-Generated Commit Message Suggestion ✨")

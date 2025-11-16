@@ -82,6 +82,34 @@ git ai-commit --context "part of ticket PROJ-123"
 
 The context is included in the AI prompt and can help generate a more accurate commit message.
 
+## Project commit guidelines
+
+Some projects maintain strict commit message guidelines (kernel-style, project-specific
+templates, or ticket metadata). Pass those guidelines to the AI so the generated message
+follows them closely. The tool accepts a single `--guidelines` argument which can be one of:
+
+- Inline text (quoted on the command line)
+- A local file path (e.g. `./COMMIT_GUIDELINES.md`)
+- An `http://` or `https://` URL (the tool will download the page and use its text)
+
+When you provide `--guidelines`, the tool will automatically cache the guidelines into the
+repository style cache (default: `.git/ai-commit-style.json`), overwriting any previously
+cached guidelines for that repo. On subsequent runs, if you don't pass `--guidelines`, the
+cached guidelines will be used automatically.
+
+Examples:
+
+```bash
+# Pass guidelines inline
+git ai-commit --guidelines "Subjects must start with a subsystem in brackets, e.g. [net]: and include a bug tracker ID when applicable"
+
+# Pass a local file containing longer guidelines
+git ai-commit --guidelines ./COMMIT_GUIDELINES.md
+
+# Pass a URL to fetch guidelines (downloaded and cached)
+git ai-commit --guidelines https://example.com/COMMIT_POLICY.md
+```
+
 ## Recommended workflow
 
 1. Stage your changes: `git add <files>`

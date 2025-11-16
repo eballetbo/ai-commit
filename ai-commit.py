@@ -172,9 +172,48 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
 
 def main():
     """Main function to run the commit message generator."""
+    # If the user asked for help, prefer opening the manual page for the
+    # installed git-ai-commit man file (so `git ai-commit --help` behaves like
+    # `man git-ai-commit`). Do this before argparse parses args.
+    cli_args = sys.argv[1:]
+    if any(a in ('-h', '--help') for a in cli_args):
+        # Try to open the man page `git-ai-commit` first. This will use the
+        # user's pager (less/man) and provide the full manual.
+        try:
+            subprocess.run(["man", "git-ai-commit"])
+            sys.exit(0)
+        except FileNotFoundError:
+            # 'man' not available on this system
+            print("Note: 'man' command not found. Please install man or view 'man/git-ai-commit.1' in this repo.")
+            sys.exit(0)
+        except subprocess.CalledProcessError:
+            # man ran but returned non-zero (page may not be installed)
+            print("Manual page 'git-ai-commit' not installed. See man/git-ai-commit.1 in this repository for the manual.")
+            sys.exit(0)
     parser = argparse.ArgumentParser(
         description="AI-powered commit message generator for Git",
-        add_help=True
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=True,
+        epilog="""
+Examples:
+
+  # Generate a message and commit interactively
+  git ai-commit
+
+  # Preview the suggested message without committing
+  git ai-commit --dry-run
+
+  # Provide additional context for the AI
+  git ai-commit --context "part of PROJ-123"
+
+  # Provide project guidelines (inline, file path, or URL); this will be cached
+  git ai-commit --guidelines ./COMMIT_GUIDELINES.md
+
+Notes:
+  - Unknown flags are forwarded to the underlying `git commit` command.
+  - If you pass a commit message flag (-m, -F, --file) those will be respected
+    and the AI suggestion will not override them.
+"""
     )
     parser.add_argument(
         "--auto-commit",

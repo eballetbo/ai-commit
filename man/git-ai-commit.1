@@ -1,0 +1,98 @@
+.TH GIT-AI-COMMIT 1 "16 November 2025" "ai-commit 0.1"
+.SH NAME
+git-ai-commit \- AI-powered helper to generate git commit messages
+.SH SYNOPSIS
+.B git ai-commit
+.RI [ options ]
+.SH DESCRIPTION
+.B git-ai-commit
+is a small helper that analyzes staged changes and the repository commit history
+and uses an AI model to suggest a concise, conventional commit message.
+
+The tool is intended to be installed as a git subcommand (e.g. a file named
+"git-ai-commit" in your PATH) so it can be invoked as
+.B git ai-commit.
+
+.SH OPTIONS
+The following options are supported (common ones shown):
+.TP
+.B \-\-auto-commit
+Automatically commit without asking for confirmation.
+.TP
+.B \-\-dry-run
+Generate the message but do not run the commit.
+.TP
+.B \-\-analyze
+Analyze recent commits and write a small per-repo style cache to
+.I .git/ai-commit-style.json
+.TP
+.B \-\-history-depth <n>
+Number of commits to scan when analyzing history. Default: 1000.
+.TP
+.B \-\-cache-file <path>
+Path to the style cache file (default: .git/ai-commit-style.json).
+.TP
+.B \-\-force-analyze
+Ignore any existing cache and analyze history before generating the message.
+.TP
+.B \-\-context <text>
+Additional context to pass to the AI to influence the generated message.
+.TP
+.B \-\-guidelines <text|path|url>
+Project-specific commit guidelines. Can be:
+.RS
+\- Inline text (quoted on the command line)
+\- Path to a local file whose contents will be used
+\- An http(s) URL which will be downloaded and used
+.RE
+When provided, guidelines are cached into the repository style cache and used
+on subsequent runs.
+
+.SH EXAMPLES
+.TP
+Generate a message and commit interactively:
+.nf
+$ git add file.py
+$ git ai-commit
+.fi
+.TP
+Preview the suggested message without committing:
+.nf
+$ git ai-commit --dry-run
+.fi
+.TP
+Provide project guidelines from a local file:
+.nf
+$ git ai-commit --guidelines ./COMMIT_GUIDELINES.md
+.fi
+.TP
+Provide guidelines from a URL:
+.nf
+$ git ai-commit --guidelines https://example.com/COMMIT_POLICY.md
+.fi
+.SH INSTALLATION
+To install as a git subcommand, copy the script into a file named
+"git-ai-commit" and make it executable, then place it on your PATH, for
+example:
+.nf
+$ chmod +x git-ai-commit
+$ mv git-ai-commit ~/.local/bin/
+.fi
+If you want the manual page to be available via the man command, copy the
+provided man page into your local man directory (requires root for system
+paths):
+.nf
+# copy to system man directory (may require sudo)
+$ sudo cp man/git-ai-commit.1 /usr/local/share/man/man1/
+$ sudo mandb
+.fi
+Or install for your local user:
+.nf
+$ mkdir -p ~/.local/share/man/man1
+$ cp man/git-ai-commit.1 ~/.local/share/man/man1/
+$ mandb --user
+.fi
+.SH SEE ALSO
+git(1), git-commit(1)
+.SH AUTHOR
+Written by the ai-commit project.

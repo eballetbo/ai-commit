@@ -65,8 +65,46 @@ else
     echo -e "${GREEN}✓ Installed to $INSTALL_PATH${NC}"
 fi
 
-# Step 4: Configure API key (optional)
-echo -e "\n${BLUE}Step 4: API Key Configuration${NC}"
+# Step 4: Install manual page
+echo -e "\n${BLUE}Step 4: Installing manual page...${NC}"
+
+# Check if the man directory exists in the repo
+if [ ! -f "man/git-ai-commit.1" ]; then
+    echo -e "${YELLOW}⚠ Manual page not found at man/git-ai-commit.1${NC}"
+else
+    # Try user-local man path first (recommended, no sudo needed)
+    USER_MAN_PATH="$HOME/.local/share/man/man1"
+    if [ -d "$HOME/.local/share" ]; then
+        mkdir -p "$USER_MAN_PATH"
+        cp man/git-ai-commit.1 "$USER_MAN_PATH/"
+        echo -e "${GREEN}✓ Manual page installed to $USER_MAN_PATH${NC}"
+
+        # Update mandb for user path if mandb is available
+        if command -v mandb &> /dev/null; then
+            mandb --user 2>/dev/null || true
+            echo -e "${GREEN}✓ Manual database updated${NC}"
+        else
+            echo -e "${YELLOW}⚠ mandb not found; you may need to run 'mandb --user' manually${NC}"
+        fi
+    else
+        # Fallback to system-wide install (may require sudo)
+        echo -e "${YELLOW}Attempting system-wide man page installation...${NC}"
+        if sudo -n true 2>/dev/null; then
+            # sudo available without password prompt
+            sudo cp man/git-ai-commit.1 /usr/local/share/man/man1/
+            sudo mandb 2>/dev/null || true
+            echo -e "${GREEN}✓ Manual page installed to /usr/local/share/man/man1/${NC}"
+        else
+            echo -e "${YELLOW}⚠ Could not install system-wide man page (requires sudo)${NC}"
+            echo "To install manually, run:"
+            echo -e "${BLUE}  sudo cp man/git-ai-commit.1 /usr/local/share/man/man1/${NC}"
+            echo -e "${BLUE}  sudo mandb${NC}"
+        fi
+    fi
+fi
+
+# Step 5: Configure API key (optional)
+echo -e "\n${BLUE}Step 5: API Key Configuration${NC}"
 if [ -z "$GOOGLE_API_KEY" ]; then
     echo -e "${YELLOW}GOOGLE_API_KEY not set${NC}"
     echo "Get your API key from: https://aistudio.google.com/app/apikey"
@@ -77,8 +115,8 @@ else
     echo -e "${GREEN}✓ GOOGLE_API_KEY is already configured${NC}"
 fi
 
-# Step 5: Verify installation
-echo -e "\n${BLUE}Step 5: Verifying installation...${NC}"
+# Step 6: Verify installation
+echo -e "\n${BLUE}Step 6: Verifying installation...${NC}"
 
 # Refresh PATH for this script
 export PATH="$INSTALL_PATH:$PATH"

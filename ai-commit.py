@@ -11,8 +11,8 @@ commit history, and uses the Gemini AI model to generate a suggested
 commit message.
 
 **Prerequisites:**
-1.  You must have the `google-generativeai` library installed:
-    pip install google-generativeai
+1.  You must have the `google-genai` library installed:
+    pip install google-genai
 
 2.  You need to configure your Gemini API key. The script will prompt you
     to enter it if it's not found in the GOOGLE_API_KEY environment variable.
@@ -44,10 +44,10 @@ import urllib.request
 from urllib.error import URLError
 
 try:
-    import google.generativeai as genai
+    from google import genai
 except ImportError:
-    print("Error: The 'google-generativeai' library is not installed.")
-    print("Please install it by running: pip install google-generativeai")
+    print("Error: The 'google-genai' library is not installed.")
+    print("Please install it by running: pip install google-genai")
     sys.exit(1)
 
 # --- Configuration ---
@@ -106,13 +106,12 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
 
     api_key = get_api_key()
     try:
-        genai.configure(api_key=api_key)
+        client = genai.Client(api_key=api_key)
     except Exception as e:
         print(f"Error configuring Gemini AI: {e}")
         sys.exit(1)
 
     # For this script, we'll use the gemini-3-flash model
-    model = genai.GenerativeModel('gemini-3-flash')
 
     # Build the prompt with optional context and guidelines
     context_section = ""
@@ -160,7 +159,9 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
     6. Do not include any introductory text like "Here is the commit message:". Just provide the raw commit message.
     """
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-3-flash', contents=prompt
+        )
         return response.text.strip()
     except Exception as e:
         print(f"An error occurred while communicating with the Gemini API: {e}")

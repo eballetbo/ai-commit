@@ -111,8 +111,8 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
         print(f"Error configuring Gemini AI: {e}")
         sys.exit(1)
 
-    # For this script, we'll use the gemini-2.5-flash model
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    # For this script, we'll use the gemini-3-flash model
+    model = genai.GenerativeModel('gemini-3-flash')
 
     # Build the prompt with optional context and guidelines
     context_section = ""

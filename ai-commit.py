@@ -325,7 +325,7 @@ Notes:
         avg_len = float(sum(len(s) for s in subjects) / count) if count > 0 else 0.0
 
         profile = {
-            'created_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'created_at': datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00', 'Z'),
             'commit_count_scanned': count,
             'history_examples': subjects[:25],
             'detected_types': prefixes,

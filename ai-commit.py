@@ -160,7 +160,7 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
     """
     try:
         response = client.models.generate_content(
-            model='gemini-3-flash', contents=prompt
+            model='gemini-3-flash-preview', contents=prompt
         )
         return response.text.strip()
     except Exception as e:

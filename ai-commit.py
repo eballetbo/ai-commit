@@ -338,6 +338,11 @@ Notes:
             vprint(f"✅ Style profile written to {cache_file} ({count} commits scanned)")
         return profile
 
+    # If user asked to analyze, do it now and exit
+    if args.analyze:
+        analyze_repo(args.history_depth, args.cache_file)
+        sys.exit(0)
+
     # 1. Get the staged diff
     vprint("🔍 Analyzing staged changes...")
     staged_diff = run_command("git diff --staged")
@@ -349,10 +354,7 @@ Notes:
     # 2. Get commit history for context (use cache if available)
     vprint("📚 Preparing commit history context...")
 
-    # If user asked to analyze, do it now and exit
-    if args.analyze:
-        analyze_repo(args.history_depth, args.cache_file)
-        sys.exit(0)
+
 
     profile = None
     if not args.force_analyze:

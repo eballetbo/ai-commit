@@ -93,7 +93,7 @@ def get_api_key():
     return api_key
 
 
-def generate_commit_message(diff, history, context=None, guidelines=None):
+def generate_commit_message(diff, history, context=None, guidelines=None, verbose=False):
     """Generates a commit message using the Gemini AI.
 
     Args:
@@ -101,8 +101,10 @@ def generate_commit_message(diff, history, context=None, guidelines=None):
         history: The commit history for style reference
         context: Optional additional context to include in the prompt
         guidelines: Optional project-specific commit guidelines to follow
+        verbose: Whether to print progress messages
     """
-    print("🤖 Calling the AI to generate a commit message... (this may take a moment)")
+    if verbose:
+        print("🤖 Calling the AI to generate a commit message... (this may take a moment)")
 
     api_key = get_api_key()
     try:
@@ -427,12 +429,12 @@ Notes:
     if not guidelines_text and profile and isinstance(profile, dict):
         guidelines_text = profile.get('commit_guidelines')
 
-    vprint("🤖 Calling the AI to generate a commit message... (this may take a moment)")
     suggested_message = generate_commit_message(
         staged_diff,
         commit_history,
         context=args.context,
         guidelines=guidelines_text,
+        verbose=args.verbose,
     )
 
     # In verbose mode, show the message and ask for confirmation

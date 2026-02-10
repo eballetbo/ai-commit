@@ -20,9 +20,9 @@ fi
 
 # Step 1: Check dependencies
 echo -e "${BLUE}Step 1: Checking dependencies...${NC}"
-if ! python3 -c "import google.generativeai" 2>/dev/null; then
-    echo -e "${YELLOW}google-generativeai not installed. Installing...${NC}"
-    pip install -q google-generativeai || pip3 install -q google-generativeai
+if ! python3 -c "import google.genai" 2>/dev/null; then
+    echo -e "${YELLOW}google-genai not installed. Installing...${NC}"
+    pip install -q google-genai || pip3 install -q google-genai
     echo -e "${GREEN}✓ Dependencies installed${NC}"
 else
     echo -e "${GREEN}✓ Dependencies already satisfied${NC}"
